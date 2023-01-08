@@ -15,30 +15,27 @@ class MyLongPollBot[F[_] : Async : Parallel : Applicative]()(implicit api: Api[F
 
   override def onMessage(msg: Message): F[Unit] = msg.text.getOrElse("empty").toLowerCase match {
     case "give" | "daily" | "challange" | "daily challange" =>
-      Sync[F].handleErrorWith(dailyChallange(msg)) { e =>
+      Sync[F].handleErrorWith(onDailyChallengeMessage(msg)) { e =>
         e.printStackTrace()
         e.raiseError
       }
-
     case "random easy" => printToTgChat("todo", msg)
     case "random medium" => printToTgChat("todo", msg)
     case _ => printToTgChat("a leetcode a day keeps unemployment away!", msg)
   }
 
-  private def dailyChallange(msg: Message) = {
+  private def onDailyChallengeMessage(msg: Message) = {
     println("request for daily came")
     for {
       body <- Async[F].fromTry(Try(
         quickRequest.post(uri"https://leetcode.com/graphql")
-          .header("Content-Type", "application/json") //TODO потраить тут throw new Excpetion
+          .header("Content-Type", "application/json")
           .body("{\"query\":\"query questionOfToday {\\n\\tactiveDailyCodingChallengeQuestion {\\n\\t\\tdate\\n\\t\\tuserStatus\\n\\t\\tlink\\n\\t\\tquestion {\\n\\t\\t\\tacRate\\n\\t\\t\\tdifficulty\\n\\t\\t\\tfreqBar\\n\\t\\t\\tfrontendQuestionId: questionFrontendId\\n\\t\\t\\tisFavor\\n\\t\\t\\tpaidOnly: isPaidOnly\\n\\t\\t\\tstatus\\n\\t\\t\\ttitle\\n\\t\\t\\ttitleSlug\\n\\t\\t\\thasVideoSolution\\n\\t\\t\\thasSolution\\n\\t\\t\\ttopicTags {\\n\\t\\t\\t\\tname\\n\\t\\t\\t\\tid\\n\\t\\t\\t\\tslug\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\\n}\\n\",\"operationName\":\"questionOfToday\"}")
           .send(backend).body)
       )
-      b = parse(body).getOrElse(Json.Null)
-      //        link = root.data.activeDailyCodingChallengeQuestion.link.string.getOption(b).getOrElse(throw new Exception(s"can't parse json $b"))
-      //        difficulty = root.data.activeDailyCodingChallengeQuestion.difficulty.string.getOption(b).getOrElse(throw new Exception(s"can't parse json $b"))
+      bodyJson = parse(body).getOrElse(Json.Null)
 
-      link2 <- b.hcursor.downField("data")
+      link <- bodyJson.hcursor.downField("data")
         .downField("activeDailyCodingChallengeQuestion")
         .get[String]("link")
         .toTry.toEither match {
@@ -46,7 +43,7 @@ class MyLongPollBot[F[_] : Async : Parallel : Applicative]()(implicit api: Api[F
         case Left(e) => e.raiseError
       }
 
-      difficulty2 <- b.hcursor.downField("data")
+      difficulty <- bodyJson.hcursor.downField("data")
         .downField("activeDailyCodingChallengeQuestion")
         .downField("question")
         .get[String]("difficulty")
@@ -55,7 +52,7 @@ class MyLongPollBot[F[_] : Async : Parallel : Applicative]()(implicit api: Api[F
         case Left(e) => e.raiseError
       }
 
-      message = s"$difficulty2 https://leetcode.com/$link2"
+      message = s"$difficulty https://leetcode.com/$link"
 
       _ <- printToTgChat("HI", msg)
       r <- printToTgChat(message, msg)

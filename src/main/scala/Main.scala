@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
 
-object HelloWorld extends IOApp.Simple {
+object Main extends IOApp.Simple {
   val app = new App[IO]
   val run = IO.pure(app.app).unsafeRunSync().handleErrorWith{
     case ConnectionFailure(t) =>
